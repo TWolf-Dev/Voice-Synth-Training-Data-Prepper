@@ -131,4 +131,5 @@ dmypy.json
 # Non-Essential DIRS
 chunks/
 recordings/
-transcripts
+transcripts/
+mel/
