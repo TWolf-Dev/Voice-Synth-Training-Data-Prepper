@@ -129,7 +129,5 @@ dmypy.json
 .pyre/
 
 # Non-Essential DIRS
-chunks/
+output/
 recordings/
-transcripts/
-mel/
