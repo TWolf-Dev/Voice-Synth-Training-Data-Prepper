@@ -148,6 +148,7 @@ def package_data():
 
 def chunk_audio(audio_file, file_num):
         audio = pydub.AudioSegment.from_file(audio_file)
+        audio = audio.set_frame_rate(22050)
         chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
         
         for i, chunk in enumerate(chunks):
