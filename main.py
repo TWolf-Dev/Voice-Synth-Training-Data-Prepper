@@ -19,7 +19,6 @@
 #       in terms of script progress.
 #       - Fix subset creation method, it's lacking.
 #       - Add method for normalizing transcription (numbers, symbols, etc.)
-#       - Change audio chunk output to 22050 sample rate
 #
 #   My Project Stats:
 #       After multi-thread/multi-process changes:
@@ -50,6 +49,11 @@ import fnmatch
 import speech_recognition as sr
 import pydub
 import concurrent.futures
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--prefix", help = "Set file prefix for output")
+args = parser.parse_args()
 
 AUDIO_DIR = "./recordings/"
 CHUNKS_DIR = "./output/chunks/"
@@ -146,13 +150,15 @@ def package_data():
         tar.add(FILELIST_DIR, arcname=os.path.basename("./filelists"))
         tar.close()
 
-def chunk_audio(audio_file, file_num):
+def chunk_audio(audio_file, file_num, prefix):
         audio = pydub.AudioSegment.from_file(audio_file)
         audio = audio.set_frame_rate(22050)
+        audio = audio.set_channels(1)
+
         chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
         
         for i, chunk in enumerate(chunks):
-            chunk.export(f"{CHUNKS_DIR}JP"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
+            chunk.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
 
 def create_expanded_filelist(src):
     init_list = os.listdir(src)
@@ -164,6 +170,10 @@ def create_expanded_filelist(src):
     return final_list
 
 def main():
+    global args
+    prefix = args.prefix
+
+    # Verify necessary DIRs exist or make them
     verify_dirs()
 
     # Chunk our source audio by silence and export to output DIR
@@ -171,7 +181,7 @@ def main():
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         for i, audio_file in enumerate(src_aud):
-            executor.submit(chunk_audio, audio_file, i)
+            executor.submit(chunk_audio, audio_file, i, prefix)
 
     # Transcribe chunked audio and output to metadata.csv
     chunk_aud = os.listdir(CHUNKS_DIR)
