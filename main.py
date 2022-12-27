@@ -45,7 +45,6 @@
 import os
 import csv
 import tarfile
-import fnmatch
 import speech_recognition as sr
 import pydub
 import concurrent.futures
@@ -94,8 +93,8 @@ def transcribe_chunk(chunk):
 def write_subset(file, data, x, y):
     temp = data[x:x+y]
     with open(file, 'w') as f:
-            for lines in temp:
-                f.write(f"{lines}\n")
+            for line in temp:
+                f.write(f"JPSpeech-1.0/wavs/{line[:10]}.wav{line[10:]}\n")
 
 def create_training_subsets():
     """
@@ -125,21 +124,6 @@ def create_training_subsets():
     write_subset('./output/filelists/jps_mel_text_train_subset_1250_filelist.txt', data, 1689, 1250)
     write_subset('./output/filelists/jps_mel_text_train_subset_2500_filelist.txt', data, 2939, 2500)
 
-    data = []
-    for filename in os.listdir('./output/filelists/'):
-        if fnmatch.fnmatch(filename, '*audio*'):
-            with open(FILELIST_DIR+filename, 'r+') as file:
-                data = file.read().splitlines()
-                file.seek(0)
-                for line in data:
-                    file.write(f"JPSpeech-1.0/wavs/{line[:10]}.wav{line[10:]}\n")
-        elif fnmatch.fnmatch(filename, "*mels*"):
-            with open(FILELIST_DIR+filename, 'r+') as file:
-                data = file.read().splitlines()
-                file.seek(0)
-                for line in data:
-                    file.write(f"JPSpeech-1.0/mels/{line[:10]}.pt{line[10:]}\n")
-
 def package_data():
     """
         Place all output data into an organized compressed tar file
@@ -151,16 +135,22 @@ def package_data():
         tar.close()
 
 def chunk_audio(audio_file, file_num, prefix):
-        audio = pydub.AudioSegment.from_file(audio_file)
-        audio = audio.set_frame_rate(22050)
-        audio = audio.set_channels(1)
+    """
+        Split all source audio into small chunks base don silence and export in proper format
+    """
+    audio = pydub.AudioSegment.from_file(audio_file)
+    audio = audio.set_frame_rate(22050)
+    audio = audio.set_channels(1)
 
-        chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
-        
-        for i, chunk in enumerate(chunks):
-            chunk.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
+    chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
+    
+    for i, chunk in enumerate(chunks):
+        chunk.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
 
 def create_expanded_filelist(src):
+    """
+        Joins the necessary path to the file names in a given directory to be used with other functions
+    """
     init_list = os.listdir(src)
     final_list = []
 
