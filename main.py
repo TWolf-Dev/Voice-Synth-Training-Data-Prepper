@@ -18,91 +18,83 @@
 #       Need to add logging and exception handling so the user knows where they are
 #       in terms of script progress.
 #       - Fix subset creation method, it's lacking.
-#       - Also see about optimizing chunking and transription process (try multi-threading). 
 #       - Add method for normalizing transcription (numbers, symbols, etc.)
-#       - Change audio chunk output to 22050 sample rate
 #
 #   My Project Stats:
-#       Script Runtime:                 2hr 47min
-#       Total Source Audio Files:       18
-#       Combined Source Audio Length:   13.18 hours
-#       Total Useable Chunks Created:   12,909
-#       Combined Chunk Audio Length:    11.01 hours
-#       Total Silence Cut:              128.26 mins
-#       Total Chunks Lost:              225 chunks
-#       Total Audio Duration Lost:      2.54 mins (Lost Chunks)
+#       After multi-thread/multi-process changes:
+#           Script Runtime:                 26min 27sec
+#           Total Source Audio Files:       18
+#           Combined Source Audio Length:   13hr 10min 48sec
+#           Total Useable Chunks Created:   12923
+#           Combined Chunk Audio Length:    11hr 1min 12sec
+#           Total Silence Cut:              2hr 7min 48sec
+#           Total Chunks Lost:              211
+#           Total Audio Duration Lost:      1min 44sec (Lost Chunks)
+#       Before changes:
+#           Script Runtime:                 2hr 47min
+#           Total Source Audio Files:       18
+#           Combined Source Audio Length:   13hr 10min 48sec
+#           Total Useable Chunks Created:   12,909
+#           Combined Chunk Audio Length:    11hr 0min 36sec
+#           Total Silence Cut:              128.26 mins 2hr 7min 59sec
+#           Total Chunks Lost:              225 chunks
+#           Total Audio Duration Lost:      2min 32sec  (Lost Chunks)
 #   
 ########################################
 
 import os
 import csv
 import tarfile
-import fnmatch
 import speech_recognition as sr
-from pydub import AudioSegment
-from pydub.silence import split_on_silence
+import pydub
+import concurrent.futures
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--prefix", help = "Set file prefix for output")
+args = parser.parse_args()
 
 AUDIO_DIR = "./recordings/"
 CHUNKS_DIR = "./output/chunks/"
 TRANS_DIR = "./output/transcripts/"
 FILELIST_DIR = './output/filelists/'
-MEL_DIR = "./output/mel/"
 
-def chunk_audio():
-    """
-        Chunks audio by pauses in speech pattern and outputs @@###-####.wav files
-    """
-    
-    if not os.path.exists(AUDIO_DIR):
-        os.mkdir(AUDIO_DIR)
-
-    recordings = sorted(os.listdir(AUDIO_DIR))
-
-    for i, filename in enumerate(recordings):
-        print(f"Creating chunks from source file {i}....")
-        chunks = []
-        f = os.path.join(AUDIO_DIR, filename)
-        source_aud = AudioSegment.from_file(f)
-        
-        chunks = chunks + split_on_silence(source_aud, min_silence_len=375, silence_thresh=-40)
-        for j, chunk in enumerate(chunks):
-            chunk_name = "JP" + f"{i+1}".zfill(3) + "-" + f"{j+1}".zfill(4) + ".wav"
-            chunk.export(CHUNKS_DIR + chunk_name, format="wav")
-
-def transcribe_chunks():
-    """
-        Receives audio chunks and outputs transcriptions into CSV
-    """
-    ##
-    global files_lost
-    global total_audio_len
-    global audio_len_lost
-    ##
+def verify_dirs():
 
     if not os.path.exists(CHUNKS_DIR):
         os.mkdir(CHUNKS_DIR)
+    if not os.path.exists(AUDIO_DIR):
+        os.mkdir(AUDIO_DIR)
+    if not os.path.exists(TRANS_DIR):
+        os.mkdir(TRANS_DIR)
+    if not os.path.exists(FILELIST_DIR):
+        os.mkdir(FILELIST_DIR)
 
-    with open(TRANS_DIR + 'metadata.csv', 'a') as file:
-        writer = csv.writer(file, quoting=csv.QUOTE_NONE, quotechar='')
-        for filename in os.listdir(CHUNKS_DIR):
-            f = os.path.join(CHUNKS_DIR, filename)
-            recog = sr.Recognizer()
-            with sr.AudioFile(f) as source:
-                audio = recog.record(source)
-            try:
-                trans = recog.recognize_google(audio)
-                writer.writerow([os.path.splitext(filename)[0] + '|' + trans])
-                total_audio_len = total_audio_len + AudioSegment.from_file(f).duration_seconds
-            except Exception:
-                print(f"****File --{filename}-- caused an error****")
-                os.remove(f)
-                print(f"****File --{filename}-- Removed from dir****")
+def transcribe_chunk(chunk):
+    """
+        Receives audio chunks and outputs transcriptions into CSV
+    """
+
+    path = CHUNKS_DIR + chunk
+    r = sr.Recognizer()
+
+    with sr.AudioFile(path) as source:
+        audio_listened = r.listen(source)
+
+        try:
+            # total_audio_len = total_audio_len + pydub.AudioSegment.from_file(path).duration_seconds
+            return f'{os.path.splitext(chunk)[0]}|{r.recognize_google(audio_listened)}'
+        except Exception as e:
+            print(e)
+            os.remove(path)
+            return None
+
 
 def write_subset(file, data, x, y):
     temp = data[x:x+y]
     with open(file, 'w') as f:
-            for lines in temp:
-                f.write(f"{lines}\n")
+            for line in temp:
+                f.write(f"JPSpeech-1.0/wavs/{line[:10]}.wav{line[10:]}\n")
 
 def create_training_subsets():
     """
@@ -132,21 +124,6 @@ def create_training_subsets():
     write_subset('./output/filelists/jps_mel_text_train_subset_1250_filelist.txt', data, 1689, 1250)
     write_subset('./output/filelists/jps_mel_text_train_subset_2500_filelist.txt', data, 2939, 2500)
 
-    data = []
-    for filename in os.listdir('./output/filelists/'):
-        if fnmatch.fnmatch(filename, '*audio*'):
-            with open(FILELIST_DIR+filename, 'r+') as file:
-                data = file.read().splitlines()
-                file.seek(0)
-                for line in data:
-                    file.write(f"JPSpeech-1.0/wavs/{line[:10]}.wav{line[10:]}\n")
-        elif fnmatch.fnmatch(filename, "*mels*"):
-            with open(FILELIST_DIR+filename, 'r+') as file:
-                data = file.read().splitlines()
-                file.seek(0)
-                for line in data:
-                    file.write(f"JPSpeech-1.0/mels/{line[:10]}.pt{line[10:]}\n")
-
 def package_data():
     """
         Place all output data into an organized compressed tar file
@@ -157,11 +134,59 @@ def package_data():
         tar.add(FILELIST_DIR, arcname=os.path.basename("./filelists"))
         tar.close()
 
-def main():
+def chunk_audio(audio_file, file_num, prefix):
+    """
+        Split all source audio into small chunks base don silence and export in proper format
+    """
+    audio = pydub.AudioSegment.from_file(audio_file)
+    audio = audio.set_frame_rate(22050)
+    audio = audio.set_channels(1)
 
-    chunk_audio()
-    transcribe_chunks()
+    chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
+    
+    for i, chunk in enumerate(chunks):
+        chunk.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
+
+def create_expanded_filelist(src):
+    """
+        Joins the necessary path to the file names in a given directory to be used with other functions
+    """
+    init_list = os.listdir(src)
+    final_list = []
+
+    for filename in init_list:
+        final_list.append(os.path.join(src,filename))
+    
+    return final_list
+
+def main():
+    global args
+    prefix = args.prefix
+
+    # Verify necessary DIRs exist or make them
+    verify_dirs()
+
+    # Chunk our source audio by silence and export to output DIR
+    src_aud = create_expanded_filelist(AUDIO_DIR)
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        for i, audio_file in enumerate(src_aud):
+            executor.submit(chunk_audio, audio_file, i, prefix)
+
+    # Transcribe chunked audio and output to metadata.csv
+    chunk_aud = os.listdir(CHUNKS_DIR)
+
+    with open(TRANS_DIR+'metadata.csv', 'w') as file:
+        writer = csv.writer(file, quoting=csv.QUOTE_NONE, quotechar='', escapechar='\\')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            for transcription in executor.map(transcribe_chunk, chunk_aud):
+                if transcription:
+                    writer.writerow([transcription])
+
+    # Create training subset files
     create_training_subsets()
+
+    # Package complete dataset to tar.bz2 file for portability
     package_data()
 
 if __name__=="__main__":
