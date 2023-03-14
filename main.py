@@ -109,20 +109,20 @@ def create_training_subsets():
     write_subset('./output/filelists/jps_audio_text_test_filelist.txt', data, 0, 500)
     write_subset('./output/filelists/jps_audio_text_train_filelist.txt', data, 500, data_length)
     write_subset('./output/filelists/jps_audio_text_val_filelist.txt', data, 600, 100)
-    write_subset('./output/filelists/jps_audio_text_train_subset_64_filelist.txt', data, 700, 64)
-    write_subset('./output/filelists/jps_audio_text_train_subset_300_filelist.txt', data, 764, 300)
-    write_subset('./output/filelists/jps_audio_text_train_subset_625_filelist.txt', data, 1064, 625)
-    write_subset('./output/filelists/jps_audio_text_train_subset_1250_filelist.txt', data, 1689, 1250)
-    write_subset('./output/filelists/jps_audio_text_train_subset_2500_filelist.txt', data, 2939, 2500)
+    # write_subset('./output/filelists/jps_audio_text_train_subset_64_filelist.txt', data, 700, 64)
+    # write_subset('./output/filelists/jps_audio_text_train_subset_300_filelist.txt', data, 764, 300)
+    # write_subset('./output/filelists/jps_audio_text_train_subset_625_filelist.txt', data, 1064, 625)
+    # write_subset('./output/filelists/jps_audio_text_train_subset_1250_filelist.txt', data, 1689, 1250)
+    # write_subset('./output/filelists/jps_audio_text_train_subset_2500_filelist.txt', data, 2939, 2500)
     write_subset('./output/filelists/jps_mel_text_filelist.txt', data, 0, data_length)
     write_subset('./output/filelists/jps_mel_text_test_filelist.txt', data, 0, 500)
     write_subset('./output/filelists/jps_mel_text_train_filelist.txt', data, 500, data_length)
     write_subset('./output/filelists/jps_mel_text_val_filelist.txt', data, 600, 100)
-    write_subset('./output/filelists/jps_mel_text_train_subset_64_filelist.txt', data, 700, 64)
-    write_subset('./output/filelists/jps_mel_text_train_subset_300_filelist.txt', data, 764, 300)
-    write_subset('./output/filelists/jps_mel_text_train_subset_625_filelist.txt', data, 1064, 625)
-    write_subset('./output/filelists/jps_mel_text_train_subset_1250_filelist.txt', data, 1689, 1250)
-    write_subset('./output/filelists/jps_mel_text_train_subset_2500_filelist.txt', data, 2939, 2500)
+    # write_subset('./output/filelists/jps_mel_text_train_subset_64_filelist.txt', data, 700, 64)
+    # write_subset('./output/filelists/jps_mel_text_train_subset_300_filelist.txt', data, 764, 300)
+    # write_subset('./output/filelists/jps_mel_text_train_subset_625_filelist.txt', data, 1064, 625)
+    # write_subset('./output/filelists/jps_mel_text_train_subset_1250_filelist.txt', data, 1689, 1250)
+    # write_subset('./output/filelists/jps_mel_text_train_subset_2500_filelist.txt', data, 2939, 2500)
 
 def package_data():
     """
@@ -147,11 +147,11 @@ def chunk_audio(audio_file, file_num, prefix):
         final.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")
 
 def convert_audio_files(file):
-    audio = pydub.AudioSegment.from_file(CHUNKS_DIR + file)
+    audio = pydub.AudioSegment.from_file(CHUNKS_DIR + file, format="wav")
     audio = audio.set_frame_rate(22050)
     audio = audio.set_channels(1)
 
-    audio.export(CHUNKS_DIR + file)
+    audio.export(CHUNKS_DIR + file, format="wav")
 
 def create_expanded_filelist(src):
     """
@@ -188,6 +188,8 @@ def main():
             for transcription in executor.map(transcribe_chunk, chunk_aud):
                 if transcription:
                     writer.writerow([transcription])
+
+    chunk_aud = os.listdir(CHUNKS_DIR)
 
     # Convert sample rate and stereo->mono
     for file in chunk_aud:
