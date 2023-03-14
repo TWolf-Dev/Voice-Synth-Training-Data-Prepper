@@ -139,13 +139,19 @@ def chunk_audio(audio_file, file_num, prefix):
         Split all source audio into small chunks base don silence and export in proper format
     """
     audio = pydub.AudioSegment.from_file(audio_file)
-    audio = audio.set_frame_rate(22050)
-    audio = audio.set_channels(1)
 
     chunks = pydub.silence.split_on_silence(audio, min_silence_len=375, silence_thresh=-40)
     
     for i, chunk in enumerate(chunks):
-        chunk.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")    
+        final = chunk + pydub.AudioSegment.silent(duration=200)
+        final.export(f"{CHUNKS_DIR+prefix}"+f"{file_num}".zfill(3)+"-"+f"{i+1}".zfill(4)+".wav", format="wav")
+
+def convert_audio_files(file):
+    audio = pydub.AudioSegment.from_file(CHUNKS_DIR + file)
+    audio = audio.set_frame_rate(22050)
+    audio = audio.set_channels(1)
+
+    audio.export(CHUNKS_DIR + file)
 
 def create_expanded_filelist(src):
     """
@@ -182,6 +188,10 @@ def main():
             for transcription in executor.map(transcribe_chunk, chunk_aud):
                 if transcription:
                     writer.writerow([transcription])
+
+    # Convert sample rate and stereo->mono
+    for file in chunk_aud:
+        convert_audio_files(file)
 
     # Create training subset files
     create_training_subsets()
